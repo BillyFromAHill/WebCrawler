@@ -49,10 +49,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CrawlPageResults.cs" />
+    <Compile Include="CrawlWorkerArgs.cs" />
     <Compile Include="DomainCrawler.cs" />
     <Compile Include="DomainCrawlerConfiguration.cs" />
     <Compile Include="PageCrawler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RobotsParams.cs" />
+    <Compile Include="RobotsReader.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="NLog.config">

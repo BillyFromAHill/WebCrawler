@@ -12,16 +12,15 @@ namespace WebCrawlerTestApp
     {
         static void Main(string[] args)
         {
-            CancellationTokenSource cts = new CancellationTokenSource();
-
-            var pageCrawler = new PageCrawler(
-                new Uri("https://ya.ru"),
-                new Uri("ya/", UriKind.Relative),
-                "ya.html");
+            DomainCrawlerConfiguration configuration = new DomainCrawlerConfiguration();
 
 
 
-            pageCrawler.StartCrawling(cts.Token).Wait();
+            var domainCrawler = new DomainCrawler(new Uri("https://www.rbc.ru/"), configuration);
+
+            domainCrawler.CrawlDomain();
+
+            Console.ReadLine();
         }
     }
 }

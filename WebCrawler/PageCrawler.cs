@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,47 +17,39 @@ namespace WebCrawler
 
         private Uri _pageUri;
 
-        private Uri _resultsDirectory;
-
-        private string _pageFileName;
-
-        public PageCrawler(Uri pageUri, Uri resultsDirectory, string pageFileName)
+        public PageCrawler(Uri pageUri)
         {
             if (pageUri == null)
             {
                 throw new ArgumentNullException("pageUri");
             }
 
-            if (resultsDirectory == null)
-            {
-                throw new ArgumentNullException("resultsDirecotry");
-            }
-
-            if (string.IsNullOrEmpty(pageFileName))
-            {
-                throw new ArgumentNullException("pageFileName");
-            }
-
             _pageUri = pageUri;
-            _resultsDirectory = resultsDirectory;
-            _pageFileName = pageFileName;
         }
 
-        public async Task<CrawlPageResults> StartCrawling(CancellationToken cancellationToken)
+        public Uri PageUri
+        {
+            get
+            {
+                return _pageUri;
+            }
+        }
+
+        public async Task<CrawlPageResults> StartCrawling(
+            Stream resultDestination,
+            CancellationToken cancellationToken)
         {
             return await await Task.Factory.StartNew(
-                async (token) =>
+                async (args) =>
                 {
-                    return await CrawlWorker((CancellationToken)token);
+                    return await CrawlWorker((CrawlWorkerArgs)args);
                 },
-                cancellationToken,
+                new CrawlWorkerArgs() { CancellationToken = cancellationToken, DestStream = resultDestination},
                 TaskCreationOptions.LongRunning);
         }
 
-        private async Task<CrawlPageResults> CrawlWorker(CancellationToken token)
+        private async Task<CrawlPageResults> CrawlWorker(CrawlWorkerArgs args)
         {
-            var webRequest = WebRequest.Create(_pageUri);
-
             // Строка целиком - не слишком здорово.
             string responseString = string.Empty;
 
@@ -66,41 +59,59 @@ namespace WebCrawler
             long contentLength = 0;
 
             loadWatcher.Start();
-            using (WebResponse response = await webRequest.GetResponseAsync())
+
+            var webRequest = WebRequest.Create(_pageUri);
+
+            try
             {
-                HttpWebResponse httpResponse = response as HttpWebResponse;
-                if (httpResponse == null)
+                using (WebResponse response = await webRequest.GetResponseAsync())
                 {
-                    // Здесь можно предпринять что-то еще, но мы хотим видеть именно страницы.
-                    throw new ArgumentException("Specified Uri deoesn't contain page");
-                }
-
-                statusCode = httpResponse.StatusCode;
-                contentLength = httpResponse.ContentLength;
-
-                using (Stream resopnseStream = response.GetResponseStream())
-                {
-                    using (StreamReader reader = new StreamReader(resopnseStream))
+                    HttpWebResponse httpResponse = response as HttpWebResponse;
+                    if (httpResponse == null)
                     {
-                        responseString = await reader.ReadToEndAsync();
+                        // Здесь можно предпринять что-то еще, но мы хотим видеть именно страницы.
+                        throw new ArgumentException("Specified Uri doesn't contain page");
+                    }
+
+                    statusCode = httpResponse.StatusCode;
+                    contentLength = httpResponse.ContentLength;
+
+                    using (Stream resopnseStream = response.GetResponseStream())
+                    {
+                        using (StreamReader reader = new StreamReader(resopnseStream))
+                        {
+                            responseString = await reader.ReadToEndAsync();
+                        }
                     }
                 }
             }
+            catch (WebException ex)
+            {
+                HttpWebResponse httpResponse = ex.Response as HttpWebResponse;
+                if (httpResponse == null)
+                {
+                    throw new ArgumentException("Specified Uri doesn't contain page");
+                }
+                statusCode = httpResponse.StatusCode;
+                contentLength = httpResponse.ContentLength;
+            }
             loadWatcher.Stop();
 
-            string directoryName = Path.GetDirectoryName(_resultsDirectory.OriginalString);
-            if (!string.IsNullOrEmpty(responseString))
+
+            if (!string.IsNullOrEmpty(responseString) && args.DestStream != null)
             {
-                Directory.CreateDirectory(directoryName);
-                File.WriteAllText(Path.Combine(directoryName, _pageFileName), responseString);
+                // С кодировкой могут быть проблемки.
+                byte[] stringBytes = Encoding.UTF8.GetBytes(responseString);
+                await args.DestStream.WriteAsync(stringBytes, 0, stringBytes.Length);
             }
 
             return new CrawlPageResults() {
                 CrawledUri = _pageUri,
                 LoadTimeMS = loadWatcher.ElapsedMilliseconds,
                 ContentLength = contentLength,
+                StatusCode = statusCode,
                 References = FindAllReferences(responseString),
-                ContentUris = FindContentUris(responseString)
+                ContentUris = FindContentUris(responseString),
             };
         }
 
@@ -133,7 +144,19 @@ namespace WebCrawler
             {
                 try
                 {
-                    var currentUri = new Uri(match.Groups[1].Value);
+                    string hrefValue = match.Groups[1].Value;
+
+                    if (hrefValue == "#" || string.IsNullOrEmpty(hrefValue))
+                    {
+                        continue;
+                    }
+
+                    var currentUri = new Uri(match.Groups[1].Value, UriKind.RelativeOrAbsolute);
+
+                    if (currentUri.IsAbsoluteUri && currentUri.Host != _pageUri.Host)
+                    {
+                        continue;
+                    }
 
                     if (currentUri.IsAbsoluteUri)
                     {
@@ -169,7 +192,7 @@ namespace WebCrawler
             {
                 try
                 {
-                    var currentUri = new Uri(match.Groups[1].Value);
+                    var currentUri = new Uri(match.Groups[1].Value, UriKind.RelativeOrAbsolute);
 
                     if (currentUri.IsAbsoluteUri)
                     {

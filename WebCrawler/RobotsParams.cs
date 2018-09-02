@@ -6,13 +6,13 @@ using System.Threading.Tasks;
 
 namespace WebCrawler
 {
-    public class DomainCrawlerConfiguration
+    class RobotsParams
     {
-        public DomainCrawlerConfiguration()
+        public RobotsParams()
         {
-            MaxThreads = 100;
+            CrawlDelay = 0;
         }
 
-        public int MaxThreads { get; set; }
+        public int CrawlDelay { get; set; }
     }
 }
