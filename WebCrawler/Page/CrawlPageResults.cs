@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace WebCrawler
 {
-    public class CrawlPageResults
+    class CrawlPageResults
     {
         public Uri CrawledUri { get; set; }
 

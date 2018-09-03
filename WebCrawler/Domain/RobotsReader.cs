@@ -62,7 +62,7 @@ namespace WebCrawler
             return null;
         }
 
-        private RobotsParams ParseRobots(string robotsString)
+        public RobotsParams ParseRobots(string robotsString)
         {
             string[] lines = robotsString.Split("\r\n".ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
             RobotsParams robotParams = new RobotsParams();
@@ -83,7 +83,7 @@ namespace WebCrawler
                     continue;
                 }
 
-                Regex delayRegex = new Regex("crawl-delay\\s*:\\s*<1>\\d+<1>", RegexOptions.IgnoreCase);
+                Regex delayRegex = new Regex("crawl-delay\\s*:\\s*(\\d+)", RegexOptions.IgnoreCase);
 
                 Match match = delayRegex.Match(line);
 

@@ -48,22 +48,20 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CrawlPageResults.cs" />
-    <Compile Include="CrawlWorkerArgs.cs" />
-    <Compile Include="DomainCrawler.cs" />
-    <Compile Include="DomainCrawlerConfiguration.cs" />
-    <Compile Include="PageCrawler.cs" />
+    <Compile Include="CrawlerConfiguration.cs" />
+    <Compile Include="Domain\CrawlQueueItem.cs" />
+    <Compile Include="Page\CrawlPageResults.cs" />
+    <Compile Include="Page\CrawlWorkerArgs.cs" />
+    <Compile Include="Domain\DomainCrawler.cs" />
+    <Compile Include="Domain\DomainCrawlerConfiguration.cs" />
+    <Compile Include="Page\PageCrawler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RobotsParams.cs" />
-    <Compile Include="RobotsReader.cs" />
+    <Compile Include="Domain\RobotsParams.cs" />
+    <Compile Include="Domain\RobotsReader.cs" />
+    <Compile Include="WebCrawler.cs" />
+    <Compile Include="WebCrawlerItem.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="NLog.config">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <None Include="NLog.xsd">
-      <SubType>Designer</SubType>
-    </None>
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

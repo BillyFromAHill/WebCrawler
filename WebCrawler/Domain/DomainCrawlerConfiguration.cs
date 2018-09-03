@@ -10,9 +10,10 @@ namespace WebCrawler
     {
         public DomainCrawlerConfiguration()
         {
-            MaxThreads = 100;
+            MaxTasks = 100;
         }
 
-        public int MaxThreads { get; set; }
+        public int MaxTasks { get; set; }
+
     }
 }

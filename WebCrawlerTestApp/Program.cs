@@ -12,13 +12,26 @@ namespace WebCrawlerTestApp
     {
         static void Main(string[] args)
         {
-            DomainCrawlerConfiguration configuration = new DomainCrawlerConfiguration();
+            List<Uri> uris = new List<Uri>()
+            {
+                new Uri("https://www.rbc.ru/"),
+                new Uri("https://habrahabr.ru/"),
+                new Uri("https://zr.ru/"),
+                new Uri("https://youtube.com/"),
+                new Uri("https://rp5.ru/"),
+            };
 
+            List<WebCrawlerItem> crawlerItems = new List<WebCrawlerItem>();
 
+            foreach (var uri in uris)
+            {
+                crawlerItems.Add(new WebCrawlerItem(uri) {Configuration = new DomainCrawlerConfiguration()});
+            }
 
-            var domainCrawler = new DomainCrawler(new Uri("https://www.rbc.ru/"), configuration);
+            var crawler = new WebCrawler.WebCrawler(new CrawlerConfiguration());
 
-            domainCrawler.CrawlDomain();
+            crawler.StartCrawling(crawlerItems);
+
 
             Console.ReadLine();
         }

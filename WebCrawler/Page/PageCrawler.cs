@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace WebCrawler
 {
-    public class PageCrawler
+    class PageCrawler
     {
         private static Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -92,6 +92,7 @@ namespace WebCrawler
                 {
                     throw new ArgumentException("Specified Uri doesn't contain page");
                 }
+
                 statusCode = httpResponse.StatusCode;
                 contentLength = httpResponse.ContentLength;
             }
