@@ -14,7 +14,7 @@ namespace WebCrawler
 
             MaxPageLevel = 10;
 
-            MaxPages = -1;
+            MaxPages = 100;
         }
 
         public int MaxTasks { get; set; }

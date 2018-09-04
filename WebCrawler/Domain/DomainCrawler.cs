@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using NLog;
 using WebCrawler.Domain;
 
@@ -33,6 +34,10 @@ namespace WebCrawler
 
         private string _domainDirectory;
 
+        private DomainCrawlStatistics _statistics;
+
+        private int _statSavePeriodPages = 10;
+
         public DomainCrawler(Uri siteUri, DomainCrawlerConfiguration configuration)
         {
             if (siteUri == null)
@@ -42,11 +47,12 @@ namespace WebCrawler
 
             _siteUri = siteUri;
 
-            _pagesToCrawl.Enqueue( new CrawlQueueItem()
-            {
-                Crawler = new PageCrawler(_siteUri),
-                PageLevel = 0,
-            });
+            _pagesToCrawl.Enqueue(
+                new CrawlQueueItem()
+                {
+                    Crawler = new PageCrawler(_siteUri),
+                    PageLevel = 0,
+                });
 
             _crawledUri.Add(_siteUri);
 
@@ -55,8 +61,10 @@ namespace WebCrawler
             _configuration = configuration;
         }
 
-        public async Task CrawlDomain(CancellationToken cancellationToken)
+        public async Task<DomainCrawlStatistics> CrawlDomain(CancellationToken cancellationToken)
         {
+            _statistics = new DomainCrawlStatistics();
+
             CancellationToken resultToken =
                 CancellationTokenSource.CreateLinkedTokenSource(
                     cancellationToken,
@@ -70,7 +78,8 @@ namespace WebCrawler
 
                     RobotsParams robotsParams = await _robotsReader.GetRobotsParams();
 
-                    while ((_pagesToCrawl.Count > 0 || _currentTasks.Count > 0) && !resultToken.IsCancellationRequested)
+                    while ((_pagesToCrawl.Count > 0 || _currentTasks.Count > 0) &&
+                           !resultToken.IsCancellationRequested)
                     {
                         _currentTasks.RemoveWhere(t => t.IsCompleted);
 
@@ -94,7 +103,11 @@ namespace WebCrawler
                         }
                     }
 
-                }, TaskCreationOptions.LongRunning);
+                    SaveStatistics();
+                },
+                TaskCreationOptions.LongRunning);
+
+            return _statistics;
         }
 
         private async Task CrawlPage(CrawlQueueItem crawlItem, CancellationToken cancellationToken)
@@ -103,10 +116,14 @@ namespace WebCrawler
             {
                 // Раскладываем в корень страницы.
                 using (FileStream pageStream = new FileStream(
-                    Path.Combine(_domainDirectory, crawlItem.Crawler.PageUri.ToString().Replace("/", "-").Replace(":", "-").Replace("?", "-") + ".html"),
+                    Path.Combine(
+                        _domainDirectory,
+                        crawlItem.Crawler.PageUri.ToString().Replace("/", "-").Replace(":", "-")
+                            .Replace("?", "-") + ".html"),
                     FileMode.Create))
                 {
-                    CrawlPageResults results = await crawlItem.Crawler.StartCrawling(pageStream, cancellationToken);
+                    CrawlPageResults results =
+                        await crawlItem.Crawler.StartCrawling(pageStream, cancellationToken);
 
                     LoadContent(results.ContentUris);
 
@@ -116,9 +133,13 @@ namespace WebCrawler
                     // которую по мере вычитывания ему давал PageCrawler и, тем самым проверялось
                     // бы и стоп условие и все шло бы без излишних проверок и прочего, но имеем то, 
                     // что имеем.
-                    if (!string.IsNullOrEmpty(_configuration.StopString) && results.PageContent.Contains(_configuration.StopString))
+                    if (!string.IsNullOrEmpty(_configuration.StopString) &&
+                        results.PageContent.Contains(_configuration.StopString))
                     {
-                        Logger.Log(LogLevel.Info, $"Stop string found at { crawlItem.Crawler.PageUri }");
+                        Logger.Log(
+                            LogLevel.Info,
+                            $"Stop string found at {crawlItem.Crawler.PageUri}");
+
                         _internalCTS.Cancel();
                         return;
                     }
@@ -142,14 +163,21 @@ namespace WebCrawler
             }
         }
 
+
         private void EnqeueCrawlers(IEnumerable<Uri> nextPages, int parentLevel)
         {
             foreach (var page in nextPages)
             {
-                if ((_configuration.MaxPages < 0 || _crawledUri.Count < _configuration.MaxPages) && !_crawledUri.Contains(page))
+                if ((_configuration.MaxPages < 0 || _crawledUri.Count < _configuration.MaxPages) &&
+                    !_crawledUri.Contains(page))
                 {
                     _crawledUri.Add(page);
-                    _pagesToCrawl.Enqueue(new CrawlQueueItem() { Crawler = new PageCrawler(page), PageLevel = parentLevel + 1});
+                    _pagesToCrawl.Enqueue(
+                        new CrawlQueueItem()
+                        {
+                            Crawler = new PageCrawler(page),
+                            PageLevel = parentLevel + 1
+                        });
                 }
             }
         }
@@ -161,7 +189,27 @@ namespace WebCrawler
 
         private void UpdateStatistics(CrawlPageResults results)
         {
+            _statistics.AppendPageResults(results);
 
+            if (_crawledUri.Count % _statSavePeriodPages == 0)
+            {
+                SaveStatistics();
+            }
+        }
+
+        private void SaveStatistics()
+        {
+            using (var statStream = new FileStream( Path.Combine(_domainDirectory, $"{_siteUri.Host}.stat.json"), FileMode.Create))
+            {
+                using (StreamWriter writer = new StreamWriter(statStream))
+                {
+                    using (JsonTextWriter jsonWriter = new JsonTextWriter(writer))
+                    {
+                        JsonSerializer serializer = new JsonSerializer();
+                        serializer.Serialize(jsonWriter, _statistics);
+                    }
+                }
+            }
         }
     }
 }

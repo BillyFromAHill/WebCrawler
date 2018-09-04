@@ -56,7 +56,6 @@ namespace WebCrawler
             var loadWatcher = new Stopwatch();
 
             HttpStatusCode statusCode;
-            long contentLength = 0;
 
             loadWatcher.Start();
 
@@ -74,8 +73,6 @@ namespace WebCrawler
                     }
 
                     statusCode = httpResponse.StatusCode;
-                    contentLength = httpResponse.ContentLength;
-
                     using (Stream resopnseStream = response.GetResponseStream())
                     {
                         using (StreamReader reader = new StreamReader(resopnseStream))
@@ -94,7 +91,6 @@ namespace WebCrawler
                 }
 
                 statusCode = httpResponse.StatusCode;
-                contentLength = httpResponse.ContentLength;
             }
             loadWatcher.Stop();
 
@@ -109,7 +105,7 @@ namespace WebCrawler
             return new CrawlPageResults() {
                 CrawledUri = _pageUri,
                 LoadTimeMS = loadWatcher.ElapsedMilliseconds,
-                ContentLength = contentLength,
+                ContentLength = responseString.Length * sizeof(Char),
                 StatusCode = statusCode,
                 References = FindAllReferences(responseString),
                 ContentUris = FindContentUris(responseString),
