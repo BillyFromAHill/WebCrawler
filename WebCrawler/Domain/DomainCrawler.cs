@@ -27,6 +27,7 @@ namespace WebCrawler
 
         private const int WaitForPageMS = 500;
 
+        private CancellationTokenSource _internalCTS = new CancellationTokenSource();
 
         private DomainCrawlerConfiguration _configuration;
 
@@ -56,6 +57,11 @@ namespace WebCrawler
 
         public async Task CrawlDomain(CancellationToken cancellationToken)
         {
+            CancellationToken resultToken =
+                CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
+                    _internalCTS.Token).Token;
+
             await Task.Factory.StartNew(
                 async () =>
                 {
@@ -64,17 +70,13 @@ namespace WebCrawler
 
                     RobotsParams robotsParams = await _robotsReader.GetRobotsParams();
 
-                    while ((_pagesToCrawl.Count > 0 || _currentTasks.Count > 0) && !cancellationToken.IsCancellationRequested)
+                    while ((_pagesToCrawl.Count > 0 || _currentTasks.Count > 0) && !resultToken.IsCancellationRequested)
                     {
+                        _currentTasks.RemoveWhere(t => t.IsCompleted);
+
                         if (_currentTasks.Count >= _configuration.MaxTasks)
                         {
-                            _currentTasks.RemoveWhere(t => t.IsCompleted);
-
-                            if (_currentTasks.Count >= _configuration.MaxTasks)
-                            {
-                                Task.WaitAny(_currentTasks.ToArray(), WaitForPageMS, cancellationToken);
-                            }
-
+                            Task.WaitAny(_currentTasks.ToArray(), WaitForPageMS, resultToken);
                             continue;
                         }
 
@@ -82,12 +84,12 @@ namespace WebCrawler
                         {
                             CrawlQueueItem currentCrawler = _pagesToCrawl.Dequeue();
 
-                            Task task = CrawlPage(currentCrawler, cancellationToken);
+                            Task task = CrawlPage(currentCrawler, resultToken);
                             _currentTasks.Add(task);
 
                             if (robotsParams.CrawlDelay > 0)
                             {
-                                await Task.Delay(robotsParams.CrawlDelay, cancellationToken);
+                                await Task.Delay(robotsParams.CrawlDelay, resultToken);
                             }
                         }
                     }
@@ -106,11 +108,25 @@ namespace WebCrawler
                 {
                     CrawlPageResults results = await crawlItem.Crawler.StartCrawling(pageStream, cancellationToken);
 
-                    EnqeueCrawlers(results.References, crawlItem.PageLevel);
-
                     LoadContent(results.ContentUris);
 
                     UpdateStatistics(results);
+
+                    // В прекрасном мире, здесь был бы стрим, который пропускал через себя страницу,
+                    // которую по мере вычитывания ему давал PageCrawler и, тем самым проверялось
+                    // бы и стоп условие и все шло бы без излишних проверок и прочего, но имеем то, 
+                    // что имеем.
+                    if (!string.IsNullOrEmpty(_configuration.StopString) && results.PageContent.Contains(_configuration.StopString))
+                    {
+                        Logger.Log(LogLevel.Info, $"Stop string found at { crawlItem.Crawler.PageUri }");
+                        _internalCTS.Cancel();
+                        return;
+                    }
+
+                    if (crawlItem.PageLevel < _configuration.MaxPageLevel)
+                    {
+                        EnqeueCrawlers(results.References, crawlItem.PageLevel);
+                    }
                 }
             }
             catch (Exception e)
@@ -130,7 +146,7 @@ namespace WebCrawler
         {
             foreach (var page in nextPages)
             {
-                if (!_crawledUri.Contains(page))
+                if ((_configuration.MaxPages < 0 || _crawledUri.Count < _configuration.MaxPages) && !_crawledUri.Contains(page))
                 {
                     _crawledUri.Add(page);
                     _pagesToCrawl.Enqueue(new CrawlQueueItem() { Crawler = new PageCrawler(page), PageLevel = parentLevel + 1});

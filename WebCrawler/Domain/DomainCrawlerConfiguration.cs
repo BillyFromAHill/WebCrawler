@@ -11,9 +11,18 @@ namespace WebCrawler
         public DomainCrawlerConfiguration()
         {
             MaxTasks = 100;
+
+            MaxPageLevel = 10;
+
+            MaxPages = -1;
         }
 
         public int MaxTasks { get; set; }
 
+        public string StopString { get; set; }
+
+        public int MaxPages { get; set; }
+
+        public int MaxPageLevel { get; set; }
     }
 }

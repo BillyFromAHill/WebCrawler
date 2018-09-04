@@ -113,6 +113,7 @@ namespace WebCrawler
                 StatusCode = statusCode,
                 References = FindAllReferences(responseString),
                 ContentUris = FindContentUris(responseString),
+                PageContent = responseString
             };
         }
 

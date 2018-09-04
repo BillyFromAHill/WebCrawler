@@ -20,5 +20,7 @@ namespace WebCrawler
         public IEnumerable<Uri> References { get; set; }
 
         public IEnumerable<Uri> ContentUris { get; set; }
+
+        public string PageContent { get; set; }
     }
 }
