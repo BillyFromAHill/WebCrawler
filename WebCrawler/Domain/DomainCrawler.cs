@@ -3,7 +3,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -229,7 +231,7 @@ namespace WebCrawler
                     results =
                         await pageCrawler.StartCrawling(pageStream, cancellationToken);
 
-                    LoadContent(results.ContentUris);
+                    await LoadContent(results);
 
                     // В прекрасном мире, здесь был бы стрим, который пропускал через себя страницу,
                     // которую по мере вычитывания ему давал PageCrawler и, тем самым проверялось
@@ -278,9 +280,62 @@ namespace WebCrawler
             }
         }
 
-        private void LoadContent(IEnumerable<Uri> uris)
+        private async Task LoadContent(CrawlPageResults results)
         {
+            if (string.IsNullOrEmpty(_configuration.ContentFileMask))
+            {
+                return;
+            }
 
+            string directoryName = Path.Combine(
+                _domainDirectory,
+                results.CrawledUri.ToString().Replace("/", "-").Replace(":", "-").Replace("?", "-"));
+
+            Regex maskRegex = FileMaskToRegex(_configuration.ContentFileMask);
+            foreach (var uri in results.ContentUris)
+            {
+
+                string fileName = System.IO.Path.GetFileName(uri.LocalPath);
+
+                if (maskRegex.IsMatch(fileName))
+                {
+                    Directory.CreateDirectory(directoryName);
+
+                    var webRequest = WebRequest.Create(uri);
+
+                    try
+                    {
+                        using (WebResponse response = await webRequest.GetResponseAsync())
+                        {
+                            using (Stream resopnseStream = response.GetResponseStream())
+                            {
+                                using (var fileStream = File.OpenWrite(Path.Combine(directoryName, fileName)))
+                                {
+                                    resopnseStream.CopyTo(fileStream);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log(
+                            LogLevel.Error,
+                            ex,
+                            $"Saving content exception. {uri}");
+                    }
+                }
+            }
+        }
+
+        private string GetFileNameByUri(Uri uri)
+        {
+            return uri.ToString().Replace("/", "-").Replace(":", "-").Replace("?", "-");
+        }
+
+        private static Regex FileMaskToRegex(string sFileMask)
+        {
+            String convertedMask = "^" + Regex.Escape(sFileMask).Replace("\\*", ".*").Replace("\\?", ".") + "$";
+            return new Regex(convertedMask, RegexOptions.IgnoreCase);
         }
 
         private void UpdateProgress(CrawlPageResults results)

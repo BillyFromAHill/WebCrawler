@@ -14,10 +14,10 @@ namespace WebCrawlerTestApp
         {
             List<Uri> uris = new List<Uri>()
             {
-                /*new Uri("https://www.rbc.ru/"),
+                new Uri("https://www.rbc.ru/"),
                 new Uri("https://habrahabr.ru/"),
                 new Uri("https://zr.ru/"),
-                new Uri("https://youtube.com/"),*/
+                new Uri("https://youtube.com/"),
                 new Uri("https://rp5.ru/"),
             };
 

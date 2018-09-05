@@ -14,8 +14,12 @@ namespace WebCrawler
 
             MaxPageLevel = 10;
 
-            MaxPages = 100;
+            MaxPages = 20;
+
+            ContentFileMask = "*.png";
         }
+
+        public string ContentFileMask { get; set; }
 
         public int MaxTasks { get; set; }
 
