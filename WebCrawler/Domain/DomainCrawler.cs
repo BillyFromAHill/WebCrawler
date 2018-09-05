@@ -231,8 +231,6 @@ namespace WebCrawler
                     results =
                         await pageCrawler.StartCrawling(pageStream, cancellationToken);
 
-                    await LoadContent(results);
-
                     // В прекрасном мире, здесь был бы стрим, который пропускал через себя страницу,
                     // которую по мере вычитывания ему давал PageCrawler и, тем самым проверялось
                     // бы и стоп условие и все шло бы без излишних проверок и прочего, но имеем то, 
@@ -247,6 +245,8 @@ namespace WebCrawler
                         _contentFound = true;
                     }
                 }
+
+                await LoadContent(results);
             }
             catch (Exception e)
             {
@@ -282,6 +282,11 @@ namespace WebCrawler
 
         private async Task LoadContent(CrawlPageResults results)
         {
+            if (results == null)
+            {
+                return;
+            }
+
             if (string.IsNullOrEmpty(_configuration.ContentFileMask))
             {
                 return;
@@ -311,7 +316,7 @@ namespace WebCrawler
                             {
                                 using (var fileStream = File.OpenWrite(Path.Combine(directoryName, fileName)))
                                 {
-                                    resopnseStream.CopyTo(fileStream);
+                                    await resopnseStream.CopyToAsync(fileStream);
                                 }
                             }
                         }
