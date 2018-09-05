@@ -53,6 +53,7 @@
   <ItemGroup>
     <Compile Include="CrawlerConfiguration.cs" />
     <Compile Include="Domain\CrawlQueueItem.cs" />
+    <Compile Include="Domain\DomainCrawlerState.cs" />
     <Compile Include="Domain\DomainCrawlStatistics.cs" />
     <Compile Include="Page\CrawlPageResults.cs" />
     <Compile Include="Page\CrawlWorkerArgs.cs" />

@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 
 namespace WebCrawler.Domain
 {
-    class CrawlQueueItem
+    class DomainCrawlerState
     {
-        public Uri PageUri { get; set; }
+        public IEnumerable<Uri> CrawledUri { get; set; }
 
-        public int PageLevel { get; set; }
+        public IEnumerable<CrawlQueueItem> CrawlQueue { get; set; }
     }
 }

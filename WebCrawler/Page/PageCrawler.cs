@@ -105,7 +105,7 @@ namespace WebCrawler
             return new CrawlPageResults() {
                 CrawledUri = _pageUri,
                 LoadTimeMS = loadWatcher.ElapsedMilliseconds,
-                ContentLength = responseString.Length * sizeof(Char),
+                ContentLength = Encoding.UTF8.GetByteCount(responseString),
                 StatusCode = statusCode,
                 References = FindAllReferences(responseString),
                 ContentUris = FindContentUris(responseString),
@@ -169,8 +169,8 @@ namespace WebCrawler
                 {
                     Logger.Log(
                         LogLevel.Error,
-                        $"Link parse exception with uri {match.Groups[1].Value}",
-                        ex);
+                        ex,
+                        $"Link parse exception with uri {match.Groups[1].Value}");
                 }
             }
 
@@ -205,8 +205,8 @@ namespace WebCrawler
                 {
                     Logger.Log(
                         LogLevel.Error,
-                        $"Content parse exception with uri {match.Groups[1].Value}",
-                        ex);
+                        ex,
+                        $"Content parse exception with uri {match.Groups[1].Value}");
                 }
             }
 

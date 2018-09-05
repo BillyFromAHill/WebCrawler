@@ -18,7 +18,9 @@ namespace WebCrawler
 
         private Queue<CrawlQueueItem> _pagesToCrawl = new Queue<CrawlQueueItem>();
 
-        private HashSet<Task> _currentTasks = new HashSet<Task>();
+        private HashSet<Task<Tuple<CrawlPageResults, int>>> _currentTasks = new HashSet<Task<Tuple<CrawlPageResults, int>>>();
+
+        private HashSet<Uri> _queuedUri = new HashSet<Uri>();
 
         private HashSet<Uri> _crawledUri = new HashSet<Uri>();
 
@@ -36,7 +38,9 @@ namespace WebCrawler
 
         private DomainCrawlStatistics _statistics;
 
-        private int _statSavePeriodPages = 10;
+        private int _saveProgressPeriod = 10;
+
+        private bool _contentFound = false;
 
         public DomainCrawler(Uri siteUri, DomainCrawlerConfiguration configuration)
         {
@@ -47,87 +51,185 @@ namespace WebCrawler
 
             _siteUri = siteUri;
 
-            _pagesToCrawl.Enqueue(
-                new CrawlQueueItem()
-                {
-                    Crawler = new PageCrawler(_siteUri),
-                    PageLevel = 0,
-                });
-
-            _crawledUri.Add(_siteUri);
-
             _robotsReader = new RobotsReader(_siteUri);
 
             _configuration = configuration;
+
+            _domainDirectory = _siteUri.Host.Replace("/", "-").Replace(":", "-");
         }
 
-        public async Task<DomainCrawlStatistics> CrawlDomain(CancellationToken cancellationToken)
-        {
-            _statistics = new DomainCrawlStatistics();
 
+    public async Task<DomainCrawlStatistics> CrawlDomain(CancellationToken cancellationToken)
+        {
             CancellationToken resultToken =
                 CancellationTokenSource.CreateLinkedTokenSource(
                     cancellationToken,
                     _internalCTS.Token).Token;
 
+            _contentFound = false;
+
             await Task.Factory.StartNew(
                 async () =>
                 {
-                    _domainDirectory = _siteUri.Host.Replace("/", "-").Replace(":", "-");
+                    InitQueue();
+
                     Directory.CreateDirectory(_domainDirectory);
 
                     RobotsParams robotsParams = await _robotsReader.GetRobotsParams();
 
-                    while ((_pagesToCrawl.Count > 0 || _currentTasks.Count > 0) &&
-                           !resultToken.IsCancellationRequested)
-                    {
-                        _currentTasks.RemoveWhere(t => t.IsCompleted);
-
-                        if (_currentTasks.Count >= _configuration.MaxTasks)
+                        while ((_pagesToCrawl.Count > 0 && ShouldCrawlNextPages() || _currentTasks.Count > 0))
                         {
-                            Task.WaitAny(_currentTasks.ToArray(), WaitForPageMS, resultToken);
-                            continue;
-                        }
-
-                        if (_pagesToCrawl.Count > 0)
-                        {
-                            CrawlQueueItem currentCrawler = _pagesToCrawl.Dequeue();
-
-                            Task task = CrawlPage(currentCrawler, resultToken);
-                            _currentTasks.Add(task);
-
-                            if (robotsParams.CrawlDelay > 0)
+                            foreach (var task in _currentTasks.Where(t => t.IsCompleted).ToArray())
                             {
-                                await Task.Delay(robotsParams.CrawlDelay, resultToken);
+                                if (!task.IsFaulted && !task.IsCanceled)
+                                {
+                                    var results = task.Result;
+
+                                    UpdateProgress(results.Item1);
+
+                                    if (results.Item2 < _configuration.MaxPageLevel)
+                                    {
+                                        EnqeueCrawlers(results.Item1.References, results.Item2);
+                                    }
+
+                                    _crawledUri.Add(task.Result.Item1.CrawledUri);
+                                    _queuedUri.Remove(task.Result.Item1.CrawledUri);
+                                }
+
+                                _currentTasks.Remove(task);
+                            }
+
+                            if (_currentTasks.Count >= _configuration.MaxTasks)
+                            {
+                                Task.WaitAny(_currentTasks.ToArray(), WaitForPageMS, resultToken);
+                                continue;
+                            }
+
+                            if (_pagesToCrawl.Count > 0 &&
+                                 ShouldCrawlNextPages())
+                            {
+                                CrawlQueueItem currentCrawler = _pagesToCrawl.Dequeue();
+
+                                _currentTasks.Add(CrawlPage(currentCrawler, resultToken));
+
+                                if (robotsParams.CrawlDelay > 0)
+                                {
+                                    await Task.Delay(robotsParams.CrawlDelay, resultToken);
+                                }
                             }
                         }
-                    }
 
-                    SaveStatistics();
+
+                    SaveProgress();
                 },
                 TaskCreationOptions.LongRunning);
 
             return _statistics;
         }
 
-        private async Task CrawlPage(CrawlQueueItem crawlItem, CancellationToken cancellationToken)
+        private bool ShouldCrawlNextPages()
         {
+            CrawlQueueItem currentCrawler = null;
+
+            if (_pagesToCrawl.Count > 0)
+            {
+                currentCrawler = _pagesToCrawl.Peek();
+            }
+
+            return !_contentFound &&
+                    _crawledUri.Count + _currentTasks.Count < _configuration.MaxPages &&
+                    (currentCrawler == null || currentCrawler.PageLevel < _configuration.MaxPageLevel);
+        }
+
+        private void InitQueue()
+        {
+            _statistics = new DomainCrawlStatistics();
+            _queuedUri.Add(_siteUri);
+
+            _pagesToCrawl.Enqueue(new CrawlQueueItem(){ PageLevel = 0, PageUri = _siteUri });
+
+            if (File.Exists(GetStatisticsFileName()))
+            {
+                try
+                {
+                    using (var statStream = File.OpenRead(GetStatisticsFileName()))
+                    {
+                        using (var reader= new StreamReader(statStream))
+                        {
+                            using (var jsonReader = new JsonTextReader(reader))
+                            {
+                                var deserializer = new JsonSerializer();
+                                _statistics = deserializer.Deserialize<DomainCrawlStatistics>(jsonReader);
+                            }
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logger.Log(
+                        LogLevel.Error,
+                        e,
+                        $"Statistics parse error:");
+                }
+            }
+
+            if (File.Exists(GetStateFileName()))
+            {
+                try
+                {
+                    using (var stateStream = File.OpenRead(GetStateFileName()))
+                    {
+                        using (var reader = new StreamReader(stateStream))
+                        {
+                            using (var jsonReader = new JsonTextReader(reader))
+                            {
+                                var deserializer = new JsonSerializer();
+                                var state = deserializer.Deserialize<DomainCrawlerState>(jsonReader);
+
+                                foreach (var uri in state.CrawledUri)
+                                {
+                                    _crawledUri.Add(uri);
+                                }
+
+                                _pagesToCrawl.Clear();
+                                foreach (var item in state.CrawlQueue)
+                                {
+                                    _queuedUri.Add(item.PageUri);
+                                    _pagesToCrawl.Enqueue(item);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logger.Log(
+                        LogLevel.Error,
+                        e,
+                        $"State parse error:");
+                }
+            }
+        }
+
+        private async Task<Tuple<CrawlPageResults, int>> CrawlPage(CrawlQueueItem crawlItem, CancellationToken cancellationToken)
+        {
+            CrawlPageResults results = null;
             try
             {
                 // Раскладываем в корень страницы.
                 using (FileStream pageStream = new FileStream(
                     Path.Combine(
                         _domainDirectory,
-                        crawlItem.Crawler.PageUri.ToString().Replace("/", "-").Replace(":", "-")
+                        crawlItem.PageUri.ToString().Replace("/", "-").Replace(":", "-")
                             .Replace("?", "-") + ".html"),
                     FileMode.Create))
                 {
-                    CrawlPageResults results =
-                        await crawlItem.Crawler.StartCrawling(pageStream, cancellationToken);
+                    var pageCrawler = new PageCrawler(crawlItem.PageUri);
+
+                    results =
+                        await pageCrawler.StartCrawling(pageStream, cancellationToken);
 
                     LoadContent(results.ContentUris);
-
-                    UpdateStatistics(results);
 
                     // В прекрасном мире, здесь был бы стрим, который пропускал через себя страницу,
                     // которую по мере вычитывания ему давал PageCrawler и, тем самым проверялось
@@ -138,46 +240,40 @@ namespace WebCrawler
                     {
                         Logger.Log(
                             LogLevel.Info,
-                            $"Stop string found at {crawlItem.Crawler.PageUri}");
+                            $"Stop string found at {crawlItem.PageUri}");
 
-                        _internalCTS.Cancel();
-                        return;
-                    }
-
-                    if (crawlItem.PageLevel < _configuration.MaxPageLevel)
-                    {
-                        EnqeueCrawlers(results.References, crawlItem.PageLevel);
+                        _contentFound = true;
                     }
                 }
             }
             catch (Exception e)
             {
-                UpdateStatistics(null);
                 Logger.Log(
                     LogLevel.Error,
-                    $"Page crawl exception with uri {crawlItem.Crawler.PageUri}",
-                    e);
+                    e,
+                    $"Page crawl exception with uri {crawlItem.PageUri}");
             }
             finally
             {
             }
-        }
 
+            return new Tuple<CrawlPageResults, int>(results, crawlItem.PageLevel);
+        }
 
         private void EnqeueCrawlers(IEnumerable<Uri> nextPages, int parentLevel)
         {
             foreach (var page in nextPages)
             {
-                if ((_configuration.MaxPages < 0 || _crawledUri.Count < _configuration.MaxPages) &&
-                    !_crawledUri.Contains(page))
+                if (!_queuedUri.Contains(page) && !_crawledUri.Contains(page))
                 {
-                    _crawledUri.Add(page);
-                    _pagesToCrawl.Enqueue(
-                        new CrawlQueueItem()
-                        {
-                            Crawler = new PageCrawler(page),
-                            PageLevel = parentLevel + 1
-                        });
+                    var item = new CrawlQueueItem()
+                    {
+                        PageUri = page,
+                        PageLevel = parentLevel + 1
+                    };
+
+                    _queuedUri.Add(page);
+                    _pagesToCrawl.Enqueue(item);
                 }
             }
         }
@@ -187,28 +283,59 @@ namespace WebCrawler
 
         }
 
-        private void UpdateStatistics(CrawlPageResults results)
+        private void UpdateProgress(CrawlPageResults results)
         {
             _statistics.AppendPageResults(results);
 
-            if (_crawledUri.Count % _statSavePeriodPages == 0)
+            if (_crawledUri.Count % _saveProgressPeriod == 0)
             {
-                SaveStatistics();
+                SaveProgress();
             }
         }
 
-        private void SaveStatistics()
+        private string GetStatisticsFileName()
         {
-            using (var statStream = new FileStream( Path.Combine(_domainDirectory, $"{_siteUri.Host}.stat.json"), FileMode.Create))
+            return Path.Combine(_domainDirectory, $"{_siteUri.Host}.statistics.json");
+        }
+
+        private string GetStateFileName()
+        {
+            return Path.Combine(_domainDirectory, $"{_siteUri.Host}.state.json");
+        }
+
+        private void SaveProgress()
+        {
+            // По-хорошему, статистику стоит объединить с прогрессом.
+
+            using (var statStream = new FileStream(GetStatisticsFileName(), FileMode.Create))
             {
-                using (StreamWriter writer = new StreamWriter(statStream))
+                using (var writer = new StreamWriter(statStream))
                 {
-                    using (JsonTextWriter jsonWriter = new JsonTextWriter(writer))
+                    using (var jsonWriter = new JsonTextWriter(writer))
                     {
-                        JsonSerializer serializer = new JsonSerializer();
+                        var serializer = new JsonSerializer();
                         serializer.Serialize(jsonWriter, _statistics);
                     }
                 }
+            }
+
+            using (var statStream = new FileStream(GetStateFileName(), FileMode.Create))
+            {
+                using (var writer = new StreamWriter(statStream))
+                {
+                    using (var jsonWriter = new JsonTextWriter(writer))
+                    {
+                        var serializer = new JsonSerializer();
+                        serializer.Serialize(
+                            jsonWriter,
+                            new DomainCrawlerState()
+                            {
+                                CrawledUri = _crawledUri,
+                                CrawlQueue = _pagesToCrawl
+                            });
+                    }
+                }
+
             }
         }
     }

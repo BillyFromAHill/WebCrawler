@@ -31,10 +31,13 @@ namespace WebCrawler.Domain
             _statuses[results.StatusCode]++;
         }
 
+        [JsonProperty]
         public long TotalSizeBytes { get; private set; }
 
+        [JsonProperty]
         public long PageCount { get; private set; }
 
+        [JsonProperty]
         public long TotalLoadTimeMS { get; private set; }
 
         [JsonIgnore]
