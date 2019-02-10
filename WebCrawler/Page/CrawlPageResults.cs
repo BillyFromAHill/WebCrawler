@@ -22,5 +22,15 @@ namespace WebCrawler
         public IEnumerable<Uri> ContentUris { get; set; }
 
         public string PageContent { get; set; }
+
+        public override string ToString()
+        {
+            return $" [" +
+                   $" {nameof(CrawledUri)} = {CrawledUri}," +
+                   $" {nameof(StatusCode)} = {StatusCode}," +
+                   $" {nameof(ContentLength)} = {ContentLength}," +
+                   $" {nameof(LoadTimeMS)} = {LoadTimeMS}" +
+                   $"]";
+        }
     }
 }

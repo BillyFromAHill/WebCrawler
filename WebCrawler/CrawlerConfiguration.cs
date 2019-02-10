@@ -14,5 +14,10 @@ namespace WebCrawler
         }
 
         public int MaxCrawlDomains { get; set; }
+
+        public override string ToString()
+        {
+            return $"[{nameof(MaxCrawlDomains)} = {MaxCrawlDomains}]";
+        }
     }
 }

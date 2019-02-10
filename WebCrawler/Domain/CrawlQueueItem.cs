@@ -11,5 +11,10 @@ namespace WebCrawler.Domain
         public Uri PageUri { get; set; }
 
         public int PageLevel { get; set; }
+
+        public override string ToString()
+        {
+            return $"[{nameof(PageUri)} = {PageUri}, {nameof(PageLevel)} = {PageLevel}]";
+        }
     }
 }

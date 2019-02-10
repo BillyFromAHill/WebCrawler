@@ -21,5 +21,10 @@ namespace WebCrawler
         public Uri Domain { get; private set; }
 
         public DomainCrawlerConfiguration Configuration { get; set; }
+
+        public override string ToString()
+        {
+            return $"[{nameof(Domain)} = {Domain}, {nameof(Configuration)} = {Configuration}]";
+        }
     }
 }

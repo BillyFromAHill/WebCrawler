@@ -14,5 +14,10 @@ namespace WebCrawler
         }
 
         public int CrawlDelay { get; set; }
+
+        public override string ToString()
+        {
+            return $"[{nameof(CrawlDelay)} = {CrawlDelay}]";
+        }
     }
 }

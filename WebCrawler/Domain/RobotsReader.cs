@@ -102,5 +102,10 @@ namespace WebCrawler
 
             return robotParams;
         }
+
+        public override string ToString()
+        {
+            return $"[Domain = {_domain}]";
+        }
     }
 }

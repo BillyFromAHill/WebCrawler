@@ -76,5 +76,14 @@ namespace WebCrawler.Domain
                 return _statuses;
             }
         }
+
+        public override string ToString()
+        {
+            return $" [" +
+                   $" {nameof(TotalSizeBytes)} = {TotalSizeBytes}," +
+                   $" {nameof(PageCount)} = {PageCount}," +
+                   $" {nameof(TotalLoadTimeMS)} = {TotalLoadTimeMS}" +
+                   $"]";
+        }
     }
 }

@@ -14,7 +14,7 @@ namespace WebCrawler
 
             MaxPageLevel = 10;
 
-            MaxPages = 40;
+            MaxPages = 400;
 
             ContentFileMask = "*.png";
         }
@@ -28,5 +28,16 @@ namespace WebCrawler
         public int MaxPages { get; set; }
 
         public int MaxPageLevel { get; set; }
+
+        public override string ToString()
+        {
+            return $" [" +
+                   $" {nameof(ContentFileMask)} = {ContentFileMask}," +
+                   $" {nameof(MaxTasks)} = {MaxTasks}," +
+                   $" {nameof(StopString)} = {StopString}," +
+                   $" {nameof(MaxPages)} = {MaxPages}," +
+                   $" {nameof(MaxPageLevel)} = {MaxPageLevel}" +
+                   $"]";
+        }
     }
 }
