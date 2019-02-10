@@ -30,7 +30,7 @@ namespace WebCrawlerTestApp
 
             var crawler = new WebCrawler.WebCrawler(new CrawlerConfiguration());
 
-            crawler.StartCrawling(crawlerItems);
+            crawler.StartCrawlingAsync(crawlerItems);
 
 
             Console.ReadLine();

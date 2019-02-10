@@ -105,7 +105,7 @@ namespace WebCrawler
 
                             if (_currentTasks.Count >= _configuration.MaxTasks)
                             {
-                                Task.WaitAny(_currentTasks.ToArray(), WaitForPageMS, resultToken);
+                                await Task.WhenAny(_currentTasks.ToArray());
                                 continue;
                             }
 

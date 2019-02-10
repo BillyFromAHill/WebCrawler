@@ -39,14 +39,12 @@ namespace WebCrawler
             Stream resultDestination,
             CancellationToken cancellationToken)
         {
-            return await await Task.Factory.StartNew(
-                async (args) =>
+            return await CrawlWorker(
+                new CrawlWorkerArgs()
                 {
-                    return await CrawlWorker((CrawlWorkerArgs)args);
-                },
-
-                new CrawlWorkerArgs() { CancellationToken = cancellationToken, DestStream = resultDestination},
-                TaskCreationOptions.LongRunning);
+                    CancellationToken = cancellationToken,
+                    DestStream = resultDestination
+                });
         }
 
         private async Task<CrawlPageResults> CrawlWorker(CrawlWorkerArgs args)

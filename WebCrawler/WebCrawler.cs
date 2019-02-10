@@ -14,8 +14,6 @@ namespace WebCrawler
 
         private HashSet<Task> _crawlingDomains = new HashSet<Task>();
 
-        private const int WaitForDomainMS = 10000;
-
         private CancellationTokenSource _cts = new CancellationTokenSource();
 
         static WebCrawler()
@@ -35,51 +33,40 @@ namespace WebCrawler
 
         public WebCrawler(CrawlerConfiguration configuration)
         {
-            if (configuration == null)
+            _configuration = configuration ?? throw new ArgumentNullException("configuration");
+        }
+
+        public async Task StartCrawlingAsync(IEnumerable<WebCrawlerItem> items)
+        {
+
+            _crawlingDomains.Clear();
+
+            foreach (var webCrawlerItem in items)
             {
-                throw new ArgumentNullException("configuration");
+                DomainCrawlerConfiguration config = webCrawlerItem.Configuration;
+                _domainsToCrawl.Enqueue(new DomainCrawler(webCrawlerItem.Domain, config ?? new DomainCrawlerConfiguration()));
             }
 
-            _configuration = configuration;
-        }
-
-        public async void StartCrawling(IEnumerable<WebCrawlerItem> items)
-        {
-            await Task.Factory.StartNew(
-                () =>
+            while (_domainsToCrawl.Count > 0)
+            {
+                // Вырисовывается копипаста из краулера домена.
+                if (_crawlingDomains.Count >= _configuration.MaxCrawlDomains)
                 {
-                    _crawlingDomains.Clear();
+                    _crawlingDomains.RemoveWhere(d => d.IsCompleted);
 
-                    foreach (var webCrawlerItem in items)
+                    if (_crawlingDomains.Count >= _configuration.MaxCrawlDomains)
                     {
-                        DomainCrawlerConfiguration config = webCrawlerItem.Configuration;
-                        _domainsToCrawl.Enqueue(new DomainCrawler(webCrawlerItem.Domain, config ?? new DomainCrawlerConfiguration()));
+                        await Task.WhenAny(_crawlingDomains.ToArray());
                     }
 
-                    while (_domainsToCrawl.Count > 0)
-                    {
-                        // Вырисовывается копипаста из краулера домена.
-                        if (_crawlingDomains.Count >= _configuration.MaxCrawlDomains)
-                        {
-                            _crawlingDomains.RemoveWhere(d => d.IsCompleted);
+                    continue;
+                }
 
-                            if (_crawlingDomains.Count >= _configuration.MaxCrawlDomains)
-                            {
-                                Task.WaitAny(_crawlingDomains.ToArray(), WaitForDomainMS);
-                            }
+                DomainCrawler crawler = _domainsToCrawl.Dequeue();
+                _crawlingDomains.Add(crawler.CrawlDomain(_cts.Token));
+            }
 
-                            continue;
-                        }
-
-                        DomainCrawler crawler = _domainsToCrawl.Dequeue();
-                        _crawlingDomains.Add(crawler.CrawlDomain(_cts.Token));
-                    }
-
-                    Task.WaitAll(_crawlingDomains.ToArray());
-
-                }, TaskCreationOptions.LongRunning);
+            await Task.WhenAll(_crawlingDomains.ToArray());
         }
-
-
     }
 }
