@@ -20,12 +20,9 @@ namespace WebCrawler
 
         public RobotsReader(Uri domain)
         {
-            if (domain == null)
-            {
-                throw new ArgumentNullException("domain");
-            }
 
-            _domain = domain;
+            _domain = domain ?? throw new ArgumentNullException(nameof(domain));
+
             _robotsUri = new Uri(_domain, new Uri("robots.txt", UriKind.Relative));
         }
 
@@ -50,8 +47,8 @@ namespace WebCrawler
             {
                 Logger.Log(
                     LogLevel.Error,
-                    $"Robots parse exception with uri {_robotsUri}",
-                    e);
+                    e,
+                    $"Robots parse exception with uri {_robotsUri}");
             }
 
             if (!string.IsNullOrEmpty(robotsString))
@@ -64,36 +61,41 @@ namespace WebCrawler
 
         public RobotsParams ParseRobots(string robotsString)
         {
-            string[] lines = robotsString.Split("\r\n".ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
             RobotsParams robotParams = new RobotsParams();
-
-            foreach (var line in lines)
+            using (var stringReader = new StringReader(robotsString))
             {
-                int position = line.IndexOf("crawl-delay", StringComparison.OrdinalIgnoreCase);
-
-                if (position < 0)
+                string line;
+                while ((line = stringReader.ReadLine()) != null)
                 {
-                    continue;
-                }
-
-                int commentPosition = line.IndexOf("#", StringComparison.OrdinalIgnoreCase);
-
-                if (commentPosition > 0 && commentPosition < position)
-                {
-                    continue;
-                }
-
-                Regex delayRegex = new Regex("crawl-delay\\s*:\\s*(\\d+)", RegexOptions.IgnoreCase);
-
-                Match match = delayRegex.Match(line);
-
-                if (match.Success)
-                {
-                    int delay = 0;
-
-                    if (int.TryParse(match.Groups[1].Value, out delay))
+                    if (!string.IsNullOrEmpty(line))
                     {
-                        robotParams.CrawlDelay = delay;
+                        int position = line.IndexOf("crawl-delay", StringComparison.OrdinalIgnoreCase);
+
+                        if (position < 0)
+                        {
+                            continue;
+                        }
+
+                        int commentPosition = line.IndexOf("#", StringComparison.OrdinalIgnoreCase);
+
+                        if (commentPosition > 0 && commentPosition < position)
+                        {
+                            continue;
+                        }
+
+                        Regex delayRegex = new Regex("crawl-delay\\s*:\\s*(\\d+)", RegexOptions.IgnoreCase);
+
+                        Match match = delayRegex.Match(line);
+
+                        if (match.Success)
+                        {
+                            int delay = 0;
+
+                            if (int.TryParse(match.Groups[1].Value, out delay))
+                            {
+                                robotParams.CrawlDelay = delay;
+                            }
+                        }
                     }
                 }
             }

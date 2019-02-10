@@ -57,7 +57,9 @@ namespace WebCrawler
 
             _configuration = configuration;
 
-            _domainDirectory = _siteUri.Host.Replace("/", "-").Replace(":", "-");
+            var sb = new StringBuilder(_siteUri.Host);
+
+            _domainDirectory = sb.Replace("/", "-").Replace(":", "-").ToString();
         }
 
 
@@ -222,8 +224,7 @@ namespace WebCrawler
                 using (FileStream pageStream = new FileStream(
                     Path.Combine(
                         _domainDirectory,
-                        crawlItem.PageUri.ToString().Replace("/", "-").Replace(":", "-")
-                            .Replace("?", "-") + ".html"),
+                        GetPageFileNameByUri(crawlItem.PageUri)),
                     FileMode.Create))
                 {
                     var pageCrawler = new PageCrawler(crawlItem.PageUri);
@@ -294,7 +295,7 @@ namespace WebCrawler
 
             string directoryName = Path.Combine(
                 _domainDirectory,
-                results.CrawledUri.ToString().Replace("/", "-").Replace(":", "-").Replace("?", "-"));
+                GetDirectoryNameByUri(results.CrawledUri));
 
             Regex maskRegex = FileMaskToRegex(_configuration.ContentFileMask);
             foreach (var uri in results.ContentUris)
@@ -332,14 +333,30 @@ namespace WebCrawler
             }
         }
 
-        private string GetFileNameByUri(Uri uri)
+        private string GetDirectoryNameByUri(Uri uri)
         {
-            return uri.ToString().Replace("/", "-").Replace(":", "-").Replace("?", "-");
+            var sb = new StringBuilder(uri.ToString());
+
+            return sb.Replace("/", "-").Replace(":", "-").Replace("?", "-").ToString();
+        }
+
+        private string GetPageFileNameByUri(Uri uri)
+        {
+            var sb = new StringBuilder(GetDirectoryNameByUri(uri));
+            return sb.Append(".html").ToString();
         }
 
         private static Regex FileMaskToRegex(string sFileMask)
         {
-            String convertedMask = "^" + Regex.Escape(sFileMask).Replace("\\*", ".*").Replace("\\?", ".") + "$";
+            var sb = new StringBuilder();
+            sb
+                .Append("^")
+                .Append(Regex.Escape(sFileMask))
+                .Replace("\\*", ".*")
+                .Replace("\\?", ".")
+                .Append("$");
+
+            String convertedMask = sb.ToString();
             return new Regex(convertedMask, RegexOptions.IgnoreCase);
         }
 

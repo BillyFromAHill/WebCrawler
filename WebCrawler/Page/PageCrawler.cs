@@ -44,6 +44,7 @@ namespace WebCrawler
                 {
                     return await CrawlWorker((CrawlWorkerArgs)args);
                 },
+
                 new CrawlWorkerArgs() { CancellationToken = cancellationToken, DestStream = resultDestination},
                 TaskCreationOptions.LongRunning);
         }
