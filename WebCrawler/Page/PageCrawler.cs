@@ -35,11 +35,11 @@ namespace WebCrawler
             }
         }
 
-        public async Task<CrawlPageResults> StartCrawling(
+        public Task<CrawlPageResults> StartCrawling(
             Stream resultDestination,
             CancellationToken cancellationToken)
         {
-            return await CrawlWorker(
+            return CrawlWorker(
                 new CrawlWorkerArgs()
                 {
                     CancellationToken = cancellationToken,

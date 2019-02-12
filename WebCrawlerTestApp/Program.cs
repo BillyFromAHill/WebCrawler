@@ -25,13 +25,12 @@ namespace WebCrawlerTestApp
 
             foreach (var uri in uris)
             {
-                crawlerItems.Add(new WebCrawlerItem(uri) {Configuration = new DomainCrawlerConfiguration()});
+                crawlerItems.Add(new WebCrawlerItem(uri, new DomainCrawlerConfiguration()));
             }
 
             var crawler = new WebCrawler.WebCrawler(new CrawlerConfiguration());
 
             crawler.StartCrawlingAsync(crawlerItems);
-
 
             Console.ReadLine();
         }
